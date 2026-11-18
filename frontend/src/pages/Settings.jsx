@@ -325,12 +325,12 @@ export default function Settings() {
         <div className="card max-w-2xl">
           <div className="card-header"><span className="font-bold">Aturan Peminjaman & Denda Keterlambatan</span></div>
           <div className="grid gap-4 p-5 sm:grid-cols-2">
-            <div><label className="label">Maksimal Buku per Peminjaman</label><input type="number" min={1} max={10} className="input" value={form.max_books || 3} onChange={(e) => setForm({ ...form, max_books: e.target.value })} /></div>
-            <div><label className="label">Lama Peminjaman Default (Hari)</label><input type="number" min={1} max={60} className="input" value={form.loan_days || 14} onChange={(e) => setForm({ ...form, loan_days: e.target.value })} /></div>
-            <div><label className="label">Biaya Peminjaman per Buku (Rp)</label><input type="number" min={0} className="input" value={form.loan_fee || 2000} onChange={(e) => setForm({ ...form, loan_fee: e.target.value })} /></div>
-            <div><label className="label">Denda Keterlambatan / Hari / Buku (Rp)</label><input type="number" min={0} className="input" value={form.fine_per_day || 2000} onChange={(e) => setForm({ ...form, fine_per_day: e.target.value })} /></div>
-            <div><label className="label">Maksimal Jumlah Perpanjangan</label><input type="number" min={0} max={5} className="input" value={form.max_extend || 1} onChange={(e) => setForm({ ...form, max_extend: e.target.value })} /></div>
-            <div><label className="label">Durasi Perpanjangan Default (Hari)</label><input type="number" min={1} max={30} className="input" value={form.extend_days || 7} onChange={(e) => setForm({ ...form, extend_days: e.target.value })} /></div>
+            <div><label className="label">Maksimal Buku per Peminjaman</label><input type="number" min={1} max={10} className="input" placeholder="3" value={form.max_books ?? ""} onChange={(e) => setForm({ ...form, max_books: e.target.value })} /></div>
+            <div><label className="label">Lama Peminjaman Default (Hari)</label><input type="number" min={1} max={60} className="input" placeholder="14" value={form.loan_days ?? ""} onChange={(e) => setForm({ ...form, loan_days: e.target.value })} /></div>
+            <div><label className="label">Biaya Peminjaman per Buku (Rp)</label><input type="number" min={0} className="input" placeholder="2000" value={form.loan_fee ?? ""} onChange={(e) => setForm({ ...form, loan_fee: e.target.value })} /></div>
+            <div><label className="label">Denda Keterlambatan / Hari / Buku (Rp)</label><input type="number" min={0} className="input" placeholder="2000" value={form.fine_per_day ?? ""} onChange={(e) => setForm({ ...form, fine_per_day: e.target.value })} /></div>
+            <div><label className="label">Maksimal Jumlah Perpanjangan</label><input type="number" min={0} max={5} className="input" placeholder="1" value={form.max_extend ?? ""} onChange={(e) => setForm({ ...form, max_extend: e.target.value })} /></div>
+            <div><label className="label">Durasi Perpanjangan Default (Hari)</label><input type="number" min={1} max={30} className="input" placeholder="7" value={form.extend_days ?? ""} onChange={(e) => setForm({ ...form, extend_days: e.target.value })} /></div>
             <div className="sm:col-span-2 pt-2">
               <button className="btn btn-primary px-6" disabled={saving} onClick={saveSettings}><Save size={16} /> Simpan Aturan</button>
             </div>

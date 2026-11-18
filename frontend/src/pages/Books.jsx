@@ -13,7 +13,7 @@ import { api, fileUrl } from "@/utils/api";
 import { request } from "@/utils/request";
 import { confirmToast } from "@/utils/confirm";
 import { exportCSV, parseCSV } from "@/utils/csv";
-import { makeQrDataUrl } from "@/utils/qr";
+import { makeQrDataUrl, downloadQrLabelPng, downloadBatchQrSheetPng } from "@/utils/qr";
 import { API_ENDPOINTS as E } from "@/utils/endpoints";
 
 const CAT_PILLS = [
@@ -300,9 +300,14 @@ export default function Books() {
                 <>
                   <img src={qr.dataUrl} alt="QR" className="h-44 w-44 rounded-xl bg-white p-2 shadow" />
                   <div className="mt-2 font-mono text-base font-extrabold text-emerald-900">{qr.code}</div>
-                  <button className="btn btn-primary btn-sm mt-3" onClick={() => printSingleQr(qr)}>
-                    <Printer size={15} /> Cetak Label QR
-                  </button>
+                  <div className="mt-3 flex flex-wrap justify-center gap-2">
+                    <button className="btn btn-primary btn-sm" onClick={() => downloadQrLabelPng({ code: qr.code, title: qr.title })}>
+                      <Download size={15} /> Simpan Gambar (PNG)
+                    </button>
+                    <button className="btn btn-secondary btn-sm" onClick={() => printSingleQr(qr)}>
+                      <Printer size={15} /> Cetak PDF
+                    </button>
+                  </div>
                 </>
               ) : (
                 <span className="text-xs text-slate-400">Memuat QR...</span>
@@ -322,11 +327,19 @@ export default function Books() {
                   <img src={q.dataUrl} alt={q.code} className="mx-auto h-28 w-28" />
                   <div className="mt-1 font-mono text-xs font-extrabold text-emerald-900">{q.code}</div>
                   <div className="truncate text-[11px] text-slate-500">{q.title}</div>
+                  <button
+                    type="button"
+                    onClick={() => downloadQrLabelPng({ code: q.code, title: q.title })}
+                    className="mt-2 inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-800 hover:bg-emerald-100"
+                  >
+                    <Download size={12} /> Simpan PNG
+                  </button>
                 </div>
               ))}
             </div>
-            <div className="flex justify-end gap-2">
+            <div className="flex flex-wrap justify-end gap-2">
               <button className="btn btn-ghost" onClick={() => setBatchQr(null)}>Tutup</button>
+              <button className="btn btn-secondary" onClick={() => downloadBatchQrSheetPng(batchQr)}><Download size={16} /> Simpan Semua (PNG)</button>
               <button className="btn btn-primary" onClick={printBatchQr}><Printer size={16} /> Cetak Semua Label</button>
             </div>
           </div>

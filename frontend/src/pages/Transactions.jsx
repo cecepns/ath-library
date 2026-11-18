@@ -190,7 +190,7 @@ function LoanTab() {
   };
 
   const totalFee = books.length * loanFee;
-  const dueDate = addDaysISO(loanDate, days);
+  const dueDate = addDaysISO(loanDate, Math.max(1, Number(days) || 1));
 
   const resetForm = () => {
     setMember(null);
@@ -343,7 +343,15 @@ function LoanTab() {
                   </div>
                   <div>
                     <label className="label">Lama (hari)</label>
-                    <input type="number" min={1} max={60} className="input text-center font-bold" value={days} onChange={(e) => setDays(Math.max(1, +e.target.value || 1))} />
+                    <input
+                      type="number"
+                      min={1}
+                      max={60}
+                      className="input text-center font-bold"
+                      value={days}
+                      onChange={(e) => setDays(e.target.value)}
+                      onBlur={() => setDays(Math.max(1, Number(days) || 1))}
+                    />
                   </div>
                   <div>
                     <label className="label">Jatuh Tempo</label>
@@ -484,6 +492,7 @@ function ReturnTab() {
   const [scanCode, setScanCode] = useState("");
   const [items, setItems] = useState([]);
   const [returnDate, setReturnDate] = useState(todayISO());
+  const [damageFine, setDamageFine] = useState("");
   const [finePaid, setFinePaid] = useState(true);
   const [method, setMethod] = useState("Tunai");
   const [note, setNote] = useState("");
@@ -520,7 +529,9 @@ function ReturnTab() {
   };
 
   const calcLate = (due) => Math.max(Math.ceil((new Date(returnDate) - new Date(due)) / 864e5), 0);
-  const totalFine = items.reduce((sum, it) => sum + calcLate(it.due_date) * finePerDay, 0);
+  const lateFine = items.reduce((sum, it) => sum + calcLate(it.due_date) * finePerDay, 0);
+  const damageFineNum = Math.max(Number(damageFine) || 0, 0);
+  const totalFine = lateFine + damageFineNum;
 
   const processReturn = async () => {
     if (!items.length) return toast.error("Tidak ada buku yang akan dikembalikan");
@@ -530,6 +541,7 @@ function ReturnTab() {
         (a) => a.post(E.LOANS.RETURN_BATCH, {
           items: items.map((i) => ({ loan_id: i.loan_id, book_id: i.book_id })),
           return_date: returnDate,
+          damage_fine: damageFineNum,
           fine_paid: finePaid,
           fine_payment_method: method,
           return_note: note,
@@ -538,6 +550,7 @@ function ReturnTab() {
       );
       setMember(null);
       setItems([]);
+      setDamageFine("");
       setNote("");
       returnedList.reload();
     } catch { /* noop */ } finally {
@@ -623,14 +636,30 @@ function ReturnTab() {
               </div>
             </div>
 
-            <div className="grid gap-4 rounded-2xl bg-slate-50 p-4 dark:bg-slate-900 sm:grid-cols-4 items-end">
+            <div className="grid gap-4 rounded-2xl bg-slate-50 p-4 dark:bg-slate-900 sm:grid-cols-2 lg:grid-cols-5 items-end">
               <div>
                 <label className="label">Tanggal Pengembalian</label>
                 <input type="date" className="input" value={returnDate} onChange={(e) => setReturnDate(e.target.value)} />
               </div>
               <div>
+                <label className="label">Denda Kerusakan (Rp)</label>
+                <input
+                  type="number"
+                  min={0}
+                  className="input font-semibold"
+                  placeholder="0 (sesuai kerusakan)"
+                  value={damageFine}
+                  onChange={(e) => setDamageFine(e.target.value)}
+                />
+              </div>
+              <div>
                 <div className="label">Total Denda</div>
                 <div className="text-xl font-extrabold text-rose-600">{rupiah(totalFine)}</div>
+                {damageFineNum > 0 && (
+                  <div className="text-[10px] font-medium text-slate-500">
+                    Telat {rupiah(lateFine)} + Rusak {rupiah(damageFineNum)}
+                  </div>
+                )}
               </div>
               <div className="space-y-1 text-xs">
                 <div className="label !mb-1">Pembayaran Denda</div>
@@ -652,15 +681,15 @@ function ReturnTab() {
             </div>
 
             <div>
-              <label className="label">Catatan Kondisi Buku (Opsional)</label>
-              <input className="input" placeholder="Contoh: Buku dikembalikan dengan kondisi baik..." value={note} onChange={(e) => setNote(e.target.value)} />
+              <label className="label">Catatan Kondisi Buku / Kerusakan (Opsional)</label>
+              <input className="input" placeholder="Contoh: Sampul robek / halaman terlipat, atau buku baik..." value={note} onChange={(e) => setNote(e.target.value)} />
             </div>
 
             <div className="flex flex-wrap gap-2.5">
               <button className="btn btn-primary px-6" disabled={saving || !items.length} onClick={processReturn}>
                 <Undo2 size={17} /> {saving ? "Memproses..." : "Proses Pengembalian"}
               </button>
-              <button className="btn btn-ghost" onClick={() => { setMember(null); setItems([]); setNote(""); }}>
+              <button className="btn btn-ghost" onClick={() => { setMember(null); setItems([]); setDamageFine(""); setNote(""); }}>
                 <X size={16} /> Bersihkan
               </button>
             </div>
@@ -679,7 +708,9 @@ function ReturnTab() {
               <div className="flex justify-between"><span className="text-slate-500">Anggota</span><b>{member ? `${member.name} (${member.member_no})` : "-"}</b></div>
               <div className="flex justify-between"><span className="text-slate-500">Jumlah Buku</span><b>{items.length} buku</b></div>
               <div className="flex justify-between"><span className="text-slate-500">Status</span><span className="badge bg-emerald-100 text-emerald-700">Dikembalikan</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Total Denda</span><b className="text-rose-600">{rupiah(totalFine)}</b></div>
+              <div className="flex justify-between"><span className="text-slate-500">Denda Keterlambatan</span><b>{rupiah(lateFine)}</b></div>
+              <div className="flex justify-between"><span className="text-slate-500">Denda Kerusakan</span><b className="text-amber-700">{rupiah(damageFineNum)}</b></div>
+              <div className="flex justify-between border-t border-slate-100 pt-2 dark:border-slate-700"><span className="font-bold text-slate-700 dark:text-slate-200">Total Denda</span><b className="text-rose-600">{rupiah(totalFine)}</b></div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Status Pembayaran</span>
                 <span className={`badge ${finePaid || totalFine === 0 ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-800"}`}>
@@ -700,6 +731,7 @@ function ReturnTab() {
               <li className="flex items-center gap-2"><CheckCircle2 size={15} className="text-emerald-600 shrink-0" /> Terlambat mengembalikan dikenakan denda.</li>
               <li className="flex items-center gap-2"><CheckCircle2 size={15} className="text-emerald-600 shrink-0" /> Pastikan kondisi buku baik dan lengkap.</li>
               <li className="flex items-center gap-2"><CheckCircle2 size={15} className="text-emerald-600 shrink-0" /> Denda keterlambatan: <b>{rupiah(finePerDay)}/hari/buku</b>.</li>
+              <li className="flex items-center gap-2"><CheckCircle2 size={15} className="text-emerald-600 shrink-0" /> Denda kerusakan diisi fleksibel sesuai tingkat kerusakan buku.</li>
             </ul>
           </div>
         </div>
@@ -717,7 +749,17 @@ function ReturnTab() {
             { label: "Anggota", render: (r) => <b>{r.member_name} ({r.member_no})</b> },
             { label: "Judul Buku", key: "titles" },
             { label: "Jumlah", key: "book_count" },
-            { label: "Denda", render: (r) => rupiah(r.fine) },
+            {
+              label: "Denda",
+              render: (r) => (
+                <div>
+                  <div className="font-semibold">{rupiah(r.fine)}</div>
+                  {Number(r.damage_fine) > 0 && (
+                    <div className="text-[10px] font-medium text-amber-700">Termasuk rusak: {rupiah(r.damage_fine)}</div>
+                  )}
+                </div>
+              ),
+            },
             { label: "Pembayaran", render: (r) => (Number(r.fine) > 0 ? <span className={`badge ${r.fine_paid ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-800"}`}>{r.fine_paid ? "Sudah Bayar" : "Belum Bayar"}</span> : "-") },
             { label: "Status", render: () => <span className="badge bg-sky-100 text-sky-700">Selesai</span> },
           ]}
@@ -880,7 +922,13 @@ function HistoryTab() {
               <div><span className="text-slate-400">Tanggal Pinjam:</span> <b className="block">{formatDateID(detail.loan_date)}</b></div>
               <div><span className="text-slate-400">Jatuh Tempo:</span> <b className="block">{formatDateID(detail.due_date)}</b></div>
               <div><span className="text-slate-400">Tanggal Kembali:</span> <b className="block">{formatDateID(detail.return_date)}</b></div>
-              <div><span className="text-slate-400">Biaya / Denda:</span> <b className="block">{rupiah(detail.fee)} / {rupiah(detail.fine)}</b></div>
+              <div>
+                <span className="text-slate-400">Biaya / Total Denda:</span>
+                <b className="block">
+                  {rupiah(detail.fee)} / {rupiah(detail.fine)}
+                  {Number(detail.damage_fine) > 0 && ` (Kerusakan: ${rupiah(detail.damage_fine)})`}
+                </b>
+              </div>
             </div>
             <div>
               <h4 className="mb-2 text-xs font-bold uppercase text-slate-500">Daftar Buku</h4>

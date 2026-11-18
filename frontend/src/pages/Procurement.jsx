@@ -45,7 +45,7 @@ const PRIORITY_STYLE = { Tinggi: "bg-rose-100 text-rose-700", Sedang: "bg-amber-
 function PlansTab({ categories }) {
   const list = useList(E.PROCUREMENT.PLANS);
   const [stats, setStats] = useState(null);
-  const [form, setForm] = useState({ title: "", category_id: "", quantity: 1, priority: "Sedang", funding_source: "Pembelian", estimated_price: 0, note: "" });
+  const [form, setForm] = useState({ title: "", category_id: "", quantity: "1", priority: "Sedang", funding_source: "Pembelian", estimated_price: "", note: "" });
   const [saving, setSaving] = useState(false);
 
   const loadStats = () => api.get(E.PROCUREMENT.PLANS_STATS).then(({ data }) => setStats(data.data)).catch(() => {});
@@ -56,8 +56,11 @@ function PlansTab({ categories }) {
     if (!form.title.trim()) return toast.error("Judul buku wajib diisi");
     setSaving(true);
     try {
-      await request((a) => a.post(E.PROCUREMENT.PLANS, form), { success: "Rencana pengadaan tersimpan" });
-      setForm({ title: "", category_id: "", quantity: 1, priority: "Sedang", funding_source: "Pembelian", estimated_price: 0, note: "" });
+      await request(
+        (a) => a.post(E.PROCUREMENT.PLANS, { ...form, quantity: Math.max(1, Number(form.quantity) || 1), estimated_price: Math.max(0, Number(form.estimated_price) || 0) }),
+        { success: "Rencana pengadaan tersimpan" }
+      );
+      setForm({ title: "", category_id: "", quantity: "1", priority: "Sedang", funding_source: "Pembelian", estimated_price: "", note: "" });
       list.reload();
       loadStats();
     } catch { /* noop */ } finally {
@@ -112,9 +115,16 @@ function PlansTab({ categories }) {
             <div>
               <label className="label">Jumlah *</label>
               <div className="flex items-center gap-1.5">
-                <button type="button" className="btn btn-ghost !px-2.5" onClick={() => setForm((f) => ({ ...f, quantity: Math.max(1, f.quantity - 1) }))}><Minus size={14} /></button>
-                <input type="number" min={1} className="input text-center font-bold" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: Math.max(1, +e.target.value || 1) })} />
-                <button type="button" className="btn btn-ghost !px-2.5" onClick={() => setForm((f) => ({ ...f, quantity: f.quantity + 1 }))}><Plus size={14} /></button>
+                <button type="button" className="btn btn-ghost !px-2.5" onClick={() => setForm((f) => ({ ...f, quantity: String(Math.max(1, (Number(f.quantity) || 1) - 1)) }))}><Minus size={14} /></button>
+                <input
+                  type="number"
+                  min={1}
+                  className="input text-center font-bold"
+                  value={form.quantity}
+                  onChange={(e) => setForm({ ...form, quantity: e.target.value })}
+                  onBlur={() => setForm((f) => ({ ...f, quantity: String(Math.max(1, Number(f.quantity) || 1)) }))}
+                />
+                <button type="button" className="btn btn-ghost !px-2.5" onClick={() => setForm((f) => ({ ...f, quantity: String((Number(f.quantity) || 0) + 1) }))}><Plus size={14} /></button>
               </div>
             </div>
             <div>
@@ -131,7 +141,14 @@ function PlansTab({ categories }) {
             </div>
             <div>
               <label className="label">Perkiraan Harga (Rp)</label>
-              <input type="number" min={0} className="input" value={form.estimated_price} onChange={(e) => setForm({ ...form, estimated_price: +e.target.value || 0 })} />
+              <input
+                type="number"
+                min={0}
+                className="input"
+                placeholder="0"
+                value={form.estimated_price}
+                onChange={(e) => setForm({ ...form, estimated_price: e.target.value })}
+              />
             </div>
             <div className="sm:col-span-3">
               <label className="label">Keterangan (Opsional)</label>
@@ -139,7 +156,7 @@ function PlansTab({ categories }) {
             </div>
             <div className="flex gap-2 sm:col-span-3">
               <button className="btn btn-primary" disabled={saving}><Save size={16} /> {saving ? "Menyimpan..." : "Simpan Rencana"}</button>
-              <button type="button" className="btn btn-ghost" onClick={() => setForm({ title: "", category_id: "", quantity: 1, priority: "Sedang", funding_source: "Pembelian", estimated_price: 0, note: "" })}><X size={16} /> Batal</button>
+              <button type="button" className="btn btn-ghost" onClick={() => setForm({ title: "", category_id: "", quantity: "1", priority: "Sedang", funding_source: "Pembelian", estimated_price: "", note: "" })}><X size={16} /> Batal</button>
             </div>
           </form>
         </div>
@@ -208,7 +225,7 @@ function PurchasesTab({ categories }) {
     payment_method: "Tunai",
     note: "",
   });
-  const [items, setItems] = useState([{ title: "", category_id: "", quantity: 1, unit_price: 0 }]);
+  const [items, setItems] = useState([{ title: "", category_id: "", quantity: "1", unit_price: "" }]);
   const [saving, setSaving] = useState(false);
 
   const loadData = () => {
@@ -229,7 +246,7 @@ function PurchasesTab({ categories }) {
     try {
       await request((a) => a.post(E.PROCUREMENT.PURCHASES, { ...form, items }), { success: "Data pembelian buku tersimpan!" });
       setForm((f) => ({ ...f, supplier: "", note: "", invoice_no: `INV-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 900) + 100)}` }));
-      setItems([{ title: "", category_id: "", quantity: 1, unit_price: 0 }]);
+      setItems([{ title: "", category_id: "", quantity: "1", unit_price: "" }]);
       loadData();
     } catch { /* noop */ } finally {
       setSaving(false);
@@ -299,9 +316,9 @@ function PurchasesTab({ categories }) {
                             {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                           </select>
                         </td>
-                        <td className="p-2"><input type="number" min={1} className="input !py-1.5 text-center text-xs font-bold" value={row.quantity} onChange={(e) => updateRow(idx, "quantity", +e.target.value || 1)} /></td>
-                        <td className="p-2"><input type="number" min={0} className="input !py-1.5 text-xs" value={row.unit_price} onChange={(e) => updateRow(idx, "unit_price", +e.target.value || 0)} /></td>
-                        <td className="whitespace-nowrap px-3 py-2 font-bold text-emerald-700">{rupiah((row.quantity || 0) * (row.unit_price || 0))}</td>
+                        <td className="p-2"><input type="number" min={1} className="input !py-1.5 text-center text-xs font-bold" placeholder="1" value={row.quantity} onChange={(e) => updateRow(idx, "quantity", e.target.value)} /></td>
+                        <td className="p-2"><input type="number" min={0} className="input !py-1.5 text-xs" placeholder="0" value={row.unit_price} onChange={(e) => updateRow(idx, "unit_price", e.target.value)} /></td>
+                        <td className="whitespace-nowrap px-3 py-2 font-bold text-emerald-700">{rupiah((Number(row.quantity) || 0) * (Number(row.unit_price) || 0))}</td>
                         <td className="p-2 text-center">
                           {items.length > 1 && (
                             <button type="button" className="text-rose-500 hover:text-rose-700" onClick={() => setItems(items.filter((_, i) => i !== idx))}><Trash2 size={14} /></button>
@@ -312,7 +329,7 @@ function PurchasesTab({ categories }) {
                   </tbody>
                 </table>
               </div>
-              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setItems([...items, { title: "", category_id: "", quantity: 1, unit_price: 0 }])}>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setItems([...items, { title: "", category_id: "", quantity: "1", unit_price: "" }])}>
                 <Plus size={14} /> Tambah Baris
               </button>
             </div>
@@ -406,7 +423,7 @@ function DonationsTab({ categories }) {
   const [recent, setRecent] = useState([]);
   const [detail, setDetail] = useState(null);
   const [form, setForm] = useState({ received_date: todayISO(), donor_name: "", donor_type: "Alumni", contact: "", donation_type: "Buku", note: "" });
-  const [items, setItems] = useState([{ title: "", category_id: "", quantity: 1, condition_status: "Baik" }]);
+  const [items, setItems] = useState([{ title: "", category_id: "", quantity: "1", condition_status: "Baik" }]);
   const [saving, setSaving] = useState(false);
 
   const loadData = () => {
@@ -426,7 +443,7 @@ function DonationsTab({ categories }) {
     try {
       await request((a) => a.post(E.PROCUREMENT.DONATIONS, { ...form, items }), { success: "Data donasi buku tersimpan!" });
       setForm({ received_date: todayISO(), donor_name: "", donor_type: "Alumni", contact: "", donation_type: "Buku", note: "" });
-      setItems([{ title: "", category_id: "", quantity: 1, condition_status: "Baik" }]);
+      setItems([{ title: "", category_id: "", quantity: "1", condition_status: "Baik" }]);
       loadData();
     } catch { /* noop */ } finally {
       setSaving(false);
@@ -494,7 +511,7 @@ function DonationsTab({ categories }) {
                             {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                           </select>
                         </td>
-                        <td className="p-2"><input type="number" min={1} className="input !py-1.5 text-center text-xs font-bold" value={row.quantity} onChange={(e) => updateRow(idx, "quantity", +e.target.value || 1)} /></td>
+                        <td className="p-2"><input type="number" min={1} className="input !py-1.5 text-center text-xs font-bold" placeholder="1" value={row.quantity} onChange={(e) => updateRow(idx, "quantity", e.target.value)} /></td>
                         <td className="p-2">
                           <select className="input !py-1.5 text-xs" value={row.condition_status} onChange={(e) => updateRow(idx, "condition_status", e.target.value)}>
                             <option value="Baik">Baik</option>
@@ -510,7 +527,7 @@ function DonationsTab({ categories }) {
                   </tbody>
                 </table>
               </div>
-              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setItems([...items, { title: "", category_id: "", quantity: 1, condition_status: "Baik" }])}>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setItems([...items, { title: "", category_id: "", quantity: "1", condition_status: "Baik" }])}>
                 <Plus size={14} /> Tambah Baris
               </button>
             </div>

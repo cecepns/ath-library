@@ -65,13 +65,21 @@ CREATE TABLE IF NOT EXISTS books (
   INDEX idx_books_deleted (deleted_at)
 );
 
--- 6. Data Anggota
+-- 6. Data Kamar & Anggota
+CREATE TABLE IF NOT EXISTS rooms (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(60) NOT NULL UNIQUE,
+  description VARCHAR(255) NULL,
+  status ENUM('aktif', 'tidak_aktif') NOT NULL DEFAULT 'aktif',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS members (
   id INT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(150) NOT NULL,
   member_no VARCHAR(30) NOT NULL UNIQUE,
   entry_year SMALLINT NOT NULL,
-  room VARCHAR(40),
+  room VARCHAR(60),
   level VARCHAR(30),
   type ENUM('santri', 'pengurus', 'ustadz') DEFAULT 'santri',
   status ENUM('aktif', 'tidak_aktif') DEFAULT 'aktif',
@@ -92,6 +100,7 @@ CREATE TABLE IF NOT EXISTS loans (
   return_date DATE NULL,
   fee INT DEFAULT 0,
   fine INT DEFAULT 0,
+  damage_fine INT NOT NULL DEFAULT 0,
   paid TINYINT(1) DEFAULT 0,
   fine_paid TINYINT(1) DEFAULT 0,
   payment_method VARCHAR(30) DEFAULT 'Tunai',
@@ -227,6 +236,21 @@ INSERT IGNORE INTO books (id, inventory_code, title, author, publisher, year, is
 (6, 'ATH-0006', 'Tafsir Al-Muyassar', 'Dr. Aidh Al-Qarni', 'Qisthi Press', 2019, '978-602-3456-77-1', 1, 'Al-Qur''an & Tafsir', 2, 'Indonesia', 'Pembelian', 4, 4, 'baik'),
 (7, 'ATH-0007', 'Riyadhus Shalihin', 'Imam An-Nawawi', 'Ummul Qura', 2021, '978-602-7654-33-5', 1, 'Hadis', 2, 'Indonesia', 'Donasi', 3, 3, 'baik'),
 (8, 'ATH-0008', 'Akhlak Lil Banin', 'Umar bin Ahmad Baraja', 'Maktabah Al-Ashriyah', 2017, NULL, 1, 'Akidah & Akhlak', 2, 'Arab', 'Hibah', 6, 5, 'kurang_baik');
+
+INSERT IGNORE INTO rooms (name, description) VALUES
+('Asatidz', 'Kamar / Kediaman Asatidz'),
+('Pengurus 1', 'Kamar Pengurus 1'),
+('Pengurus 2', 'Kamar Pengurus 2'),
+('Poskestren', 'Pos Kesehatan Pesantren'),
+('Abu Bakar', 'Asrama Santri Abu Bakar'),
+('Umar', 'Asrama Santri Umar'),
+('Utsman', 'Asrama Santri Utsman'),
+('Ali', 'Asrama Santri Ali'),
+('Bilal', 'Asrama Santri Bilal'),
+('Hamzah', 'Asrama Santri Hamzah'),
+('Hasan', 'Asrama Santri Hasan'),
+('Husein', 'Asrama Santri Husein'),
+('Tahfid', 'Asrama Santri Tahfid');
 
 INSERT IGNORE INTO members (id, name, member_no, entry_year, room, level, type, status, phone) VALUES
 (1, 'Ahmad Fauzi', 'ATH-1001', 2024, 'Abu Bakar', 'MTs', 'santri', 'aktif', '0812-1111-2222'),

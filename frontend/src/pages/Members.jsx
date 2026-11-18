@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   Users, GraduationCap, UserCheck, Briefcase, CheckCircle2, UserX,
   Plus, Upload, CreditCard, Download, Eye, Pencil, Trash2, RotateCcw,
@@ -16,10 +16,9 @@ import { api, fileUrl } from "@/utils/api";
 import { request } from "@/utils/request";
 import { confirmToast, formatDateID, rupiah } from "@/utils/confirm";
 import { exportCSV, parseCSV } from "@/utils/csv";
-import { makeQrDataUrl } from "@/utils/qr";
+import { makeQrDataUrl, downloadQrLabelPng } from "@/utils/qr";
 import { API_ENDPOINTS as E } from "@/utils/endpoints";
 
-const ROOMS = ["Asatidz", "Pengurus 1", "Pengurus 2", "Pskestren", "Abu Bakar", "Umar", "Utsman", "Ali", "Bilal", "Hamzah", "Hasan", "Husein", "Tahfid", "A1", "A2", "B1", "B2", "C1", "C2"];
 const LEVELS = ["MI", "MTs", "SMK", "Aliyah", "Kuliah", "Salaf", "Asatidz", "Staf"];
 const TYPES = [
   { value: "santri", label: "Santri" },
@@ -58,6 +57,9 @@ export default function Members() {
   const [filters, setFilters] = useState({ level: "", room: "", status: "" });
   const list = useList(E.MEMBERS.LIST, filters);
   const [stats, setStats] = useState(null);
+  const [rooms, setRooms] = useState([]);
+  const [quickRoom, setQuickRoom] = useState("");
+  const [addingRoom, setAddingRoom] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   const [detail, setDetail] = useState(null);
   const [detailTab, setDetailTab] = useState("loans");
@@ -77,7 +79,27 @@ export default function Members() {
     api.get(E.MEMBERS.STATS).then(({ data }) => setStats(data.data)).catch(() => {});
   };
 
-  useEffect(() => { loadStats(); }, []);
+  const loadRooms = () => {
+    api.get(E.ROOMS.LIST, { params: { limit: 200, status: "aktif" } })
+      .then(({ data }) => setRooms((data.data || []).map((r) => r.name)))
+      .catch(() => {});
+  };
+
+  useEffect(() => { loadStats(); loadRooms(); }, []);
+
+  const handleQuickAddRoom = async () => {
+    const name = quickRoom.trim();
+    if (!name) return;
+    setAddingRoom(true);
+    try {
+      await request((a) => a.post(E.ROOMS.LIST, { name }), { success: `Kamar "${name}" ditambahkan` });
+      setRooms((prev) => (prev.includes(name) ? prev : [...prev, name]));
+      setForm((f) => ({ ...f, room: name }));
+      setQuickRoom("");
+    } catch { /* toast handled */ } finally {
+      setAddingRoom(false);
+    }
+  };
 
   useEffect(() => {
     if (searchParams.get("add") === "1") {
@@ -206,6 +228,9 @@ export default function Members() {
           <button className="btn btn-primary" onClick={() => openForm()}>
             <Plus size={17} /> Tambah Anggota
           </button>
+          <Link to="/kamar" className="btn btn-ghost">
+            <BedDouble size={16} /> Kelola Kamar
+          </Link>
           <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={handleImport} />
           <button className="btn btn-ghost" onClick={() => fileRef.current?.click()}>
             <Upload size={16} /> Impor CSV
@@ -245,7 +270,7 @@ export default function Members() {
                 </select>
                 <select className="input w-36" value={filters.room} onChange={(e) => { setFilters((f) => ({ ...f, room: e.target.value })); list.setParams((p) => ({ ...p, page: 1 })); }}>
                   <option value="">Semua Kamar</option>
-                  {ROOMS.map((r) => <option key={r} value={r}>{r}</option>)}
+                  {rooms.map((r) => <option key={r} value={r}>{r}</option>)}
                 </select>
                 <select className="input w-36" value={filters.status} onChange={(e) => { setFilters((f) => ({ ...f, status: e.target.value })); list.setParams((p) => ({ ...p, page: 1 })); }}>
                   <option value="">Semua Status</option>
@@ -435,11 +460,32 @@ export default function Members() {
             </select>
           </div>
           <div>
-            <label className="label">Kamar</label>
+            <div className="mb-1.5 flex items-center justify-between">
+              <label className="label !mb-0">Kamar</label>
+              <Link to="/kamar" className="text-[11px] font-bold text-emerald-700 hover:underline">Kelola Kamar →</Link>
+            </div>
             <select className="input" value={form.room} onChange={(e) => setForm({ ...form, room: e.target.value })}>
               <option value="">- / Tanpa Kamar</option>
-              {ROOMS.map((r) => <option key={r} value={r}>{r}</option>)}
+              {Array.from(new Set([...rooms, ...(form.room ? [form.room] : [])])).map((r) => (
+                <option key={r} value={r}>{r}</option>
+              ))}
             </select>
+            <div className="mt-1.5 flex gap-1.5">
+              <input
+                className="input !py-1.5 text-xs"
+                placeholder="Atau tambah kamar baru..."
+                value={quickRoom}
+                onChange={(e) => setQuickRoom(e.target.value)}
+              />
+              <button
+                type="button"
+                disabled={addingRoom || !quickRoom.trim()}
+                onClick={handleQuickAddRoom}
+                className="btn btn-secondary btn-sm shrink-0"
+              >
+                <Plus size={13} /> Tambah
+              </button>
+            </div>
           </div>
           <div>
             <label className="label">No. HP / Kontak</label>
@@ -492,8 +538,14 @@ export default function Members() {
                 {cardQr && <img src={cardQr} alt="QR Anggota" className="h-20 w-20 shrink-0 rounded-xl border border-emerald-200 bg-white p-1" />}
               </div>
             </div>
-            <div className="flex justify-end gap-2">
+            <div className="flex flex-wrap justify-end gap-2">
               <button className="btn btn-ghost" onClick={() => setCardModal(null)}>Tutup</button>
+              <button
+                className="btn btn-secondary"
+                onClick={() => downloadQrLabelPng({ code: cardModal.member_no, title: cardModal.name, header: settings.app_title || "ATH LIBRARY" })}
+              >
+                <Download size={16} /> Simpan QR (PNG)
+              </button>
               <button className="btn btn-primary" onClick={() => printCard(cardModal)}><Printer size={16} /> Cetak Kartu</button>
             </div>
           </div>

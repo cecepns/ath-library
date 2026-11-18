@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
-  LayoutDashboard, BookOpen, Users, ArrowLeftRight, CalendarCheck,
+  LayoutDashboard, BookOpen, Users, BedDouble, ArrowLeftRight, CalendarCheck,
   BarChart3, ShoppingCart, Settings, Menu, ChevronDown, Bell, LogOut,
   KeyRound, AlertTriangle, Wallet, PackagePlus, ShieldCheck, X,
 } from "lucide-react";
@@ -29,6 +29,7 @@ const NAV_ITEMS = [
     ],
   },
   { key: "members", label: "Data Anggota", to: "/anggota", icon: Users },
+  { key: "rooms", label: "Data Kamar", to: "/kamar", icon: BedDouble },
   {
     key: "transactions",
     label: "Transaksi",
@@ -244,15 +245,6 @@ export default function Layout() {
             );
           })}
         </nav>
-
-        {/* Decorative bottom artwork echoing the PDF golden ribbon & open book */}
-        <div className="pointer-events-none relative h-20 shrink-0 overflow-hidden">
-          <svg viewBox="0 0 280 90" fill="none" className="absolute bottom-0 left-0 w-full opacity-40">
-            <path d="M0 72C75 40 185 32 280 4V90H0V72Z" fill="#047857" />
-            <path d="M0 78C90 50 185 46 280 18" stroke="#facc15" strokeWidth="4" strokeLinecap="round" />
-            <path d="M55 88C82 68 114 68 140 84C166 68 198 68 225 88" stroke="#a7f3d0" strokeWidth="2.5" fill="#065f46" fillOpacity="0.6" />
-          </svg>
-        </div>
       </aside>
 
       {/* MAIN CONTENT SHELL */}

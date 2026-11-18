@@ -233,6 +233,14 @@ async function initSchema() {
     FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
   )`);
 
+  await db.query(`CREATE TABLE IF NOT EXISTS rooms (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(60) NOT NULL UNIQUE,
+    description VARCHAR(255) NULL,
+    status ENUM('aktif','tidak_aktif') NOT NULL DEFAULT 'aktif',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  )`);
+
   await safeAlter("ALTER TABLE categories ADD COLUMN icon VARCHAR(40) DEFAULT 'book'");
   await safeAlter("ALTER TABLE shelves ADD COLUMN category_id INT NULL");
   await safeAlter("ALTER TABLE books ADD COLUMN acquisition_source ENUM('Pembelian','Donasi','Hibah','Program/Kerja Sama') DEFAULT 'Pembelian'");
@@ -241,6 +249,7 @@ async function initSchema() {
   await safeAlter("ALTER TABLE members ADD COLUMN phone VARCHAR(30) NULL");
   await safeAlter("ALTER TABLE members ADD COLUMN address VARCHAR(255) NULL");
   await safeAlter("ALTER TABLE loans ADD COLUMN user_id INT NULL");
+  await safeAlter("ALTER TABLE loans ADD COLUMN damage_fine INT NOT NULL DEFAULT 0");
   await safeAlter("ALTER TABLE loans ADD COLUMN fine_paid TINYINT(1) DEFAULT 0");
   await safeAlter("ALTER TABLE loans ADD COLUMN payment_method VARCHAR(30) DEFAULT 'Tunai'");
   await safeAlter("ALTER TABLE loans ADD COLUMN fine_payment_method VARCHAR(30) DEFAULT 'Tunai'");
@@ -248,6 +257,28 @@ async function initSchema() {
   await safeAlter("ALTER TABLE loans ADD COLUMN return_note VARCHAR(250) NULL");
   await safeAlter("ALTER TABLE loan_items ADD COLUMN returned_at DATE NULL");
   await safeAlter("ALTER TABLE loan_items ADD COLUMN fine INT DEFAULT 0");
+
+  // Fix typo Pskestren -> Poskestren & seed default rooms if empty
+  await db.query("UPDATE members SET room='Poskestren' WHERE room='Pskestren'");
+  const [[{ roomCnt }]] = await db.query("SELECT COUNT(*) roomCnt FROM rooms");
+  if (!roomCnt) {
+    await db.query("INSERT IGNORE INTO rooms (name, description) VALUES ?", [[
+      ["Asatidz", "Kamar / Kediaman Asatidz"],
+      ["Pengurus 1", "Kamar Pengurus 1"],
+      ["Pengurus 2", "Kamar Pengurus 2"],
+      ["Poskestren", "Pos Kesehatan Pesantren"],
+      ["Abu Bakar", "Asrama Santri Abu Bakar"],
+      ["Umar", "Asrama Santri Umar"],
+      ["Utsman", "Asrama Santri Utsman"],
+      ["Ali", "Asrama Santri Ali"],
+      ["Bilal", "Asrama Santri Bilal"],
+      ["Hamzah", "Asrama Santri Hamzah"],
+      ["Hasan", "Asrama Santri Hasan"],
+      ["Husein", "Asrama Santri Husein"],
+      ["Tahfid", "Asrama Santri Tahfid"],
+    ]]);
+    await db.query("INSERT IGNORE INTO rooms (name) SELECT DISTINCT TRIM(room) FROM members WHERE room IS NOT NULL AND TRIM(room) <> ''");
+  }
 
   const [[{ cnt }]] = await db.query("SELECT COUNT(*) cnt FROM users");
   if (!cnt) {
@@ -411,7 +442,7 @@ app.post("/api/settings/reset", authMiddleware, adminOnly, wrap(async (_req, res
 }));
 
 app.get("/api/settings/backup", authMiddleware, adminOnly, wrap(async (_req, res) => {
-  const tables = ["settings", "categories", "shelves", "books", "members", "loans", "loan_items", "visits", "procurement_plans", "purchases", "purchase_items", "donations", "donation_items"];
+  const tables = ["settings", "rooms", "categories", "shelves", "books", "members", "loans", "loan_items", "visits", "procurement_plans", "purchases", "purchase_items", "donations", "donation_items"];
   const backup = { exported_at: new Date().toISOString(), app: "ATH Library", tables: {} };
   for (const t of tables) {
     const [rows] = await db.query(`SELECT * FROM ${t}`);
@@ -827,6 +858,54 @@ app.delete("/api/members/:id", authMiddleware, wrap(async (req, res) => {
   res.json({ success: true });
 }));
 
+// ---- Rooms / Data Kamar ----
+app.get("/api/rooms", authMiddleware, wrap(async (req, res) => {
+  const page = Math.max(+req.query.page || 1, 1);
+  const limit = Math.min(Math.max(+req.query.limit || 50, 1), 200);
+  const where = [], p = [];
+  if (req.query.search) { where.push("(r.name LIKE ? OR r.description LIKE ?)"); p.push(`%${req.query.search}%`, `%${req.query.search}%`); }
+  if (req.query.status) { where.push("r.status=?"); p.push(req.query.status); }
+  const W = where.length ? where.join(" AND ") : "1=1";
+  const [[{ total }]] = await db.query(`SELECT COUNT(*) total FROM rooms r WHERE ${W}`, p);
+  const [rows] = await db.query(
+    `SELECT r.*, (SELECT COUNT(*) FROM members m WHERE m.room = r.name) AS total_members
+     FROM rooms r WHERE ${W} ORDER BY r.id ASC LIMIT ? OFFSET ?`,
+    [...p, limit, (page - 1) * limit]
+  );
+  res.json({ success: true, data: rows, pagination: { page, limit, total, totalPages: Math.max(Math.ceil(total / limit), 1) } });
+}));
+
+app.post("/api/rooms", authMiddleware, wrap(async (req, res) => {
+  const name = clean(req.body.name);
+  if (!name) throw bad("Nama kamar wajib diisi");
+  const status = req.body.status === "tidak_aktif" ? "tidak_aktif" : "aktif";
+  const [x] = await db.query("INSERT INTO rooms SET ?", [{ name, description: clean(req.body.description) || null, status }]);
+  res.status(201).json({ success: true, id: x.insertId, name });
+}));
+
+app.put("/api/rooms/:id", authMiddleware, wrap(async (req, res) => {
+  const name = clean(req.body.name);
+  if (!name) throw bad("Nama kamar wajib diisi");
+  const status = req.body.status === "tidak_aktif" ? "tidak_aktif" : "aktif";
+  const [[existing]] = await db.query("SELECT * FROM rooms WHERE id=?", [req.params.id]);
+  if (!existing) throw bad("Kamar tidak ditemukan", 404);
+
+  await db.query("UPDATE rooms SET ? WHERE id=?", [{ name, description: clean(req.body.description) || null, status }, req.params.id]);
+  if (existing.name !== name) {
+    await db.query("UPDATE members SET room=? WHERE room=?", [name, existing.name]);
+  }
+  res.json({ success: true });
+}));
+
+app.delete("/api/rooms/:id", authMiddleware, wrap(async (req, res) => {
+  const [[existing]] = await db.query("SELECT * FROM rooms WHERE id=?", [req.params.id]);
+  if (!existing) throw bad("Kamar tidak ditemukan", 404);
+  const [[{ used }]] = await db.query("SELECT COUNT(*) used FROM members WHERE room=?", [existing.name]);
+  if (used > 0) throw bad(`Kamar "${existing.name}" masih digunakan oleh ${used} anggota`, 409);
+  await db.query("DELETE FROM rooms WHERE id=?", [req.params.id]);
+  res.json({ success: true });
+}));
+
 // ==========================================
 // 8. LOANS: PEMINJAMAN, PENGEMBALIAN & PERPANJANGAN (Pages 7-8)
 // ==========================================
@@ -939,6 +1018,7 @@ app.post("/api/loans/:id/return", authMiddleware, wrap(async (req, res) => {
   const settings = await getSettingsMap();
   const finePerDay = Number(settings.fine_per_day) || 2000;
   const returnDate = clean(req.body.return_date) || new Date().toISOString().slice(0, 10);
+  const damageFine = Math.max(Number(req.body.damage_fine) || 0, 0);
   const finePaid = req.body.fine_paid !== undefined ? (req.body.fine_paid ? 1 : 0) : 1;
   const fineMethod = clean(req.body.fine_payment_method) || "Tunai";
   const returnNote = clean(req.body.return_note) || null;
@@ -963,33 +1043,36 @@ app.post("/api/loans/:id/return", authMiddleware, wrap(async (req, res) => {
     }
 
     const [[{ remaining }]] = await cn.query("SELECT COUNT(*) remaining FROM loan_items WHERE loan_id=? AND returned_at IS NULL", [l.id]);
-    const [[{ sumFine }]] = await cn.query("SELECT COALESCE(SUM(fine), 0) sumFine FROM loan_items WHERE loan_id=?", [l.id]);
+    const [[{ sumLateFine }]] = await cn.query("SELECT COALESCE(SUM(fine), 0) sumLateFine FROM loan_items WHERE loan_id=?", [l.id]);
+    const totalDamage = Number(l.damage_fine || 0) + damageFine;
+    const grandLoanFine = Number(sumLateFine) + totalDamage;
 
     if (remaining === 0) {
       await cn.query(
-        "UPDATE loans SET status='returned', return_date=?, fine=?, fine_paid=?, fine_payment_method=?, return_note=? WHERE id=?",
-        [returnDate, sumFine, sumFine > 0 ? finePaid : 1, fineMethod, returnNote, l.id]
+        "UPDATE loans SET status='returned', return_date=?, fine=?, damage_fine=?, fine_paid=?, fine_payment_method=?, return_note=? WHERE id=?",
+        [returnDate, grandLoanFine, totalDamage, grandLoanFine > 0 ? finePaid : 1, fineMethod, returnNote, l.id]
       );
     } else {
-      await cn.query("UPDATE loans SET fine=?, fine_paid=?, fine_payment_method=? WHERE id=?", [sumFine, finePaid, fineMethod, l.id]);
+      await cn.query("UPDATE loans SET fine=?, damage_fine=?, fine_paid=?, fine_payment_method=? WHERE id=?", [grandLoanFine, totalDamage, finePaid, fineMethod, l.id]);
     }
     await cn.commit();
-    res.json({ success: true, fine: itemFine * toReturn.length, remaining });
+    res.json({ success: true, fine: itemFine * toReturn.length + damageFine, damage_fine: damageFine, remaining });
   } catch (e) { await cn.rollback(); throw e; } finally { cn.release(); }
 }));
 
 app.post("/api/loans/return-batch", authMiddleware, wrap(async (req, res) => {
   const settings = await getSettingsMap();
   const finePerDay = Number(settings.fine_per_day) || 2000;
-  const { items, return_date, fine_paid, fine_payment_method, return_note } = req.body;
+  const { items, return_date, damage_fine, fine_paid, fine_payment_method, return_note } = req.body;
   if (!Array.isArray(items) || !items.length) throw bad("Pilih minimal 1 buku untuk dikembalikan");
   const retDate = clean(return_date) || new Date().toISOString().slice(0, 10);
+  const damageFineTotal = Math.max(Number(damage_fine) || 0, 0);
 
   const cn = await db.getConnection();
   try {
     await cn.beginTransaction();
-    let grandFine = 0;
-    const touchedLoans = new Set();
+    let grandLateFine = 0;
+    const touchedLoans = [];
 
     for (const it of items) {
       const [[loan]] = await cn.query("SELECT * FROM loans WHERE id=? AND status='borrowed' FOR UPDATE", [it.loan_id]);
@@ -998,26 +1081,32 @@ app.post("/api/loans/return-batch", authMiddleware, wrap(async (req, res) => {
       if (!li) continue;
       const late = Math.max(Math.ceil((new Date(retDate) - new Date(loan.due_date)) / 864e5), 0);
       const f = late * finePerDay;
-      grandFine += f;
+      grandLateFine += f;
       await cn.query("UPDATE loan_items SET returned_at=?, fine=? WHERE loan_id=? AND book_id=?", [retDate, f, it.loan_id, it.book_id]);
       await cn.query("UPDATE books SET available=LEAST(available+1, copies) WHERE id=?", [it.book_id]);
-      touchedLoans.add(it.loan_id);
+      if (!touchedLoans.includes(it.loan_id)) touchedLoans.push(it.loan_id);
     }
 
-    for (const loanId of touchedLoans) {
+    for (let idx = 0; idx < touchedLoans.length; idx++) {
+      const loanId = touchedLoans[idx];
+      const [[loanRow]] = await cn.query("SELECT damage_fine FROM loans WHERE id=?", [loanId]);
+      const addDamage = idx === 0 ? damageFineTotal : 0;
+      const newDamage = Number(loanRow?.damage_fine || 0) + addDamage;
       const [[{ remaining }]] = await cn.query("SELECT COUNT(*) remaining FROM loan_items WHERE loan_id=? AND returned_at IS NULL", [loanId]);
-      const [[{ sumFine }]] = await cn.query("SELECT COALESCE(SUM(fine),0) sumFine FROM loan_items WHERE loan_id=?", [loanId]);
+      const [[{ sumLate }]] = await cn.query("SELECT COALESCE(SUM(fine),0) sumLate FROM loan_items WHERE loan_id=?", [loanId]);
+      const totalLoanFine = Number(sumLate) + newDamage;
+
       if (remaining === 0) {
         await cn.query(
-          "UPDATE loans SET status='returned', return_date=?, fine=?, fine_paid=?, fine_payment_method=?, return_note=? WHERE id=?",
-          [retDate, sumFine, sumFine > 0 ? (fine_paid ? 1 : 0) : 1, clean(fine_payment_method) || "Tunai", clean(return_note) || null, loanId]
+          "UPDATE loans SET status='returned', return_date=?, fine=?, damage_fine=?, fine_paid=?, fine_payment_method=?, return_note=? WHERE id=?",
+          [retDate, totalLoanFine, newDamage, totalLoanFine > 0 ? (fine_paid ? 1 : 0) : 1, clean(fine_payment_method) || "Tunai", clean(return_note) || null, loanId]
         );
       } else {
-        await cn.query("UPDATE loans SET fine=?, fine_paid=?, fine_payment_method=? WHERE id=?", [sumFine, fine_paid ? 1 : 0, clean(fine_payment_method) || "Tunai", loanId]);
+        await cn.query("UPDATE loans SET fine=?, damage_fine=?, fine_paid=?, fine_payment_method=? WHERE id=?", [totalLoanFine, newDamage, fine_paid ? 1 : 0, clean(fine_payment_method) || "Tunai", loanId]);
       }
     }
     await cn.commit();
-    res.json({ success: true, total_fine: grandFine, returned_count: items.length });
+    res.json({ success: true, total_fine: grandLateFine + damageFineTotal, late_fine: grandLateFine, damage_fine: damageFineTotal, returned_count: items.length });
   } catch (e) { await cn.rollback(); throw e; } finally { cn.release(); }
 }));
 

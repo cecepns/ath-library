@@ -9,6 +9,7 @@ import BookHistory from "@/pages/BookHistory";
 import Categories from "@/pages/Categories";
 import Shelves from "@/pages/Shelves";
 import Members from "@/pages/Members";
+import Rooms from "@/pages/Rooms";
 import Transactions from "@/pages/Transactions";
 import Visits from "@/pages/Visits";
 import Reports from "@/pages/Reports";
@@ -50,6 +51,7 @@ export default function App() {
         <Route path="/kategori" element={<Categories />} />
         <Route path="/rak" element={<Shelves />} />
         <Route path="/anggota" element={<Members />} />
+        <Route path="/kamar" element={<Rooms />} />
         <Route path="/transaksi" element={<Navigate to="/transaksi/peminjaman" replace />} />
         <Route path="/transaksi/:tab" element={<Transactions />} />
         <Route path="/kunjungan" element={<Visits />} />

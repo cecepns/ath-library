@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
-  BookPlus, ArrowLeft, Upload, Trash2, QrCode, Printer, Save, Plus, X, Minus,
+  BookPlus, ArrowLeft, Upload, Trash2, QrCode, Printer, Download, Save, Plus, X, Minus,
   BookOpen, Layers, FileText, Image as ImageIcon,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { api, fileUrl } from "@/utils/api";
 import { request } from "@/utils/request";
-import { makeQrDataUrl } from "@/utils/qr";
+import { makeQrDataUrl, downloadQrLabelPng } from "@/utils/qr";
 import { API_ENDPOINTS as E } from "@/utils/endpoints";
 
 const EMPTY = {
@@ -111,7 +111,8 @@ export default function BookForm() {
       return toast.error("Judul, Penulis, Kategori, dan Lokasi Rak wajib diisi");
     }
     const fd = new FormData();
-    Object.entries(form).forEach(([k, v]) => {
+    const payload = { ...form, copies: Math.max(1, Number(form.copies) || 1) };
+    Object.entries(payload).forEach(([k, v]) => {
       if (v !== null && v !== undefined && v !== "") fd.append(k, v);
     });
     if (coverFile) fd.append("cover", coverFile);
@@ -243,7 +244,7 @@ export default function BookForm() {
                   <button
                     type="button"
                     className="btn btn-ghost !px-3"
-                    onClick={() => setForm((f) => ({ ...f, copies: Math.max(1, Number(f.copies || 1) - 1) }))}
+                    onClick={() => setForm((f) => ({ ...f, copies: Math.max(1, (Number(f.copies) || 1) - 1) }))}
                   >
                     <Minus size={16} />
                   </button>
@@ -252,12 +253,13 @@ export default function BookForm() {
                     min={1}
                     className="input text-center font-bold"
                     value={form.copies}
-                    onChange={(e) => setForm({ ...form, copies: Math.max(1, Number(e.target.value) || 1) })}
+                    onChange={(e) => setForm({ ...form, copies: e.target.value })}
+                    onBlur={() => setForm((f) => ({ ...f, copies: Math.max(1, Number(f.copies) || 1) }))}
                   />
                   <button
                     type="button"
                     className="btn btn-ghost !px-3"
-                    onClick={() => setForm((f) => ({ ...f, copies: Number(f.copies || 1) + 1 }))}
+                    onClick={() => setForm((f) => ({ ...f, copies: (Number(f.copies) || 0) + 1 }))}
                   >
                     <Plus size={16} />
                   </button>
@@ -375,9 +377,18 @@ export default function BookForm() {
                 {qrPreview?.dataUrl && (
                   <img src={qrPreview.dataUrl} alt="QR" className="h-24 w-24 rounded-xl border border-slate-200 bg-white p-1" />
                 )}
-                <button type="button" onClick={printQr} className="btn btn-secondary btn-sm">
-                  <Printer size={14} /> Cetak QR
-                </button>
+                <div className="flex flex-col gap-1.5 w-full">
+                  <button
+                    type="button"
+                    onClick={() => downloadQrLabelPng({ code: form.inventory_code || qrPreview?.code, title: form.title })}
+                    className="btn btn-primary btn-sm"
+                  >
+                    <Download size={14} /> Simpan PNG
+                  </button>
+                  <button type="button" onClick={printQr} className="btn btn-secondary btn-sm">
+                    <Printer size={14} /> Cetak QR
+                  </button>
+                </div>
               </div>
             </div>
           </div>

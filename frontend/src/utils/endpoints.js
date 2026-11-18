@@ -30,6 +30,10 @@ export const API_ENDPOINTS = {
     STATS: "/shelves/stats",
     DETAIL: (id) => `/shelves/${id}`,
   },
+  ROOMS: {
+    LIST: "/rooms",
+    DETAIL: (id) => `/rooms/${id}`,
+  },
   MEMBERS: {
     LIST: "/members",
     STATS: "/members/stats",
